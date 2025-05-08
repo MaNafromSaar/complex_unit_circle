@@ -20,7 +20,7 @@ This educational tool helps understand the connection between complex numbers, t
 ### Setup
 ```bash
 # Clone the repository
-git clone [Your Repository URL]
+git clone https://github.com/MaNafromSaar/complex_unit_circle
 
 # Install dependencies
 pip install numpy matplotlib
@@ -45,5 +45,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Links
 
-- [GitHub Repository]([Your Repository URL])
+- [GitHub Repository](https://github.com/MaNafromSaar/complex_unit_circle)
 - [Khan Academy Forum Discussion]([Your Forum URL])
