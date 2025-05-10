@@ -10,6 +10,12 @@ This educational tool helps understand the connection between complex numbers, t
 - Visual representation of complex number operations
 - Educational tool for learning complex numbers
 
+## Preview
+![image](https://github.com/user-attachments/assets/e7f3ad34-6836-4160-be2b-092bd658a63c)
+![image](https://github.com/user-attachments/assets/cbe8e421-254c-47aa-8c18-d0c732ee17eb)
+
+
+
 ## Installation
 
 ### Prerequisites
