@@ -46,4 +46,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Links
 
 - [GitHub Repository](https://github.com/MaNafromSaar/complex_unit_circle)
-- [Khan Academy Forum Discussion]([Your Forum URL])
+- [Khan Academy Forum Discussion](https://www.khanacademy.org/math/precalculus/x9e81a4f98389efdf:complex/x9e81a4f98389efdf:complex-abs-angle/a/complex-number-absolute-value-and-angle-review)
