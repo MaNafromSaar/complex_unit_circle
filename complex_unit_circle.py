@@ -105,9 +105,6 @@ class SimpleComplexPlane:
         self.sin_label = self.ax.text(-0.2, np.sin(self.angle)/2, f"sin(θ)={np.sin(self.angle):.4f}", 
                                      ha='right', va='center', color='green', fontsize=8)
         
-        # Add angle arc
-        self.draw_angle_arc()
-        
         # Add trigonometric values display directly under the graph
         self.trig_text = self.ax.text(
             0.5, -0.1, '',  
@@ -117,7 +114,7 @@ class SimpleComplexPlane:
             fontsize=9
         )
         
-        # Add text displays below the graph - this will now show exact values
+        # Add text displays below the graph
         self.info_text = self.ax.text(
             0.5, -0.146, '', 
             transform=self.ax.transAxes,
@@ -133,6 +130,9 @@ class SimpleComplexPlane:
             self.coord_label, self.cos_label, self.sin_label,
             self.trig_text, self.info_text
         ]
+        
+        # Add angle arc (after dynamic_artists is created)
+        self.draw_angle_arc()
 
         # Add UI elements in a separate method to reduce init time
         self.setup_ui()
@@ -270,7 +270,42 @@ class SimpleComplexPlane:
             radian_repr, complex_repr = self.get_angle_representation(angle_deg)
             
             # Create multi-line label with different representations
-            label_text = f"{angle_deg}°\n{radian_repr}\n"
+            if angle_deg > 180 and angle_deg <= 360:
+                negative_angle = angle_deg - 360
+                label_text = f"{angle_deg}° = {negative_angle}°\n"
+                
+                # Calculate negative radian representation
+                neg_radian_repr = radian_repr
+                if radian_repr == "π":
+                    neg_radian_repr = "-π"
+                elif radian_repr == "2π":
+                    neg_radian_repr = "0"
+                elif "/" in radian_repr:
+                    try:
+                        # Extract numerator and handle negative representation
+                        parts = radian_repr.split("π")
+                        if "/" in parts[0]:
+                            num_str, denom_str = parts[0].split("/")
+                            num = int(num_str)
+                            denom = int(denom_str)
+                            # Calculate negative form
+                            neg_num = num - (2 * denom)
+                            if neg_num == -denom:
+                                neg_radian_repr = "-π"
+                            else:
+                                neg_radian_repr = f"{neg_num}/{denom}π"
+                        elif parts[0].strip() == "":
+                            neg_radian_repr = "-π"
+                        else:
+                            num = int(parts[0])
+                            neg_radian_repr = f"{num-2}π"
+                    except:
+                        # If parsing fails, just use the original
+                        pass
+                
+                label_text += f"{radian_repr} = {neg_radian_repr}\n"
+            else:
+                label_text = f"{angle_deg}°\n{radian_repr}\n"
             
             # Add simplified complex representation
             complex_parts = complex_repr.split(" = ")
@@ -315,40 +350,106 @@ class SimpleComplexPlane:
     def draw_angle_arc(self):
         """Draw an arc to show the angle"""
         radius = 0.3  # Fixed radius for visibility
+        
+        # Create arc points
         theta = np.linspace(0, self.angle, 50)
         x = radius * np.cos(theta)
         y = radius * np.sin(theta)
         
-        # Check if arc already exists
+        # Update or create arc line
         if hasattr(self, 'angle_arc'):
             self.angle_arc.set_data(x, y)
         else:
             self.angle_arc, = self.ax.plot(x, y, 'b-', lw=1.5)
-        
-        # Update angle label at midpoint of arc
+            self.dynamic_artists.append(self.angle_arc)  # Add to dynamic artists list for blitting
+            
+        # Calculate midpoint for angle label positioning
         mid_angle = self.angle / 2
         label_x = (radius * 1.2) * np.cos(mid_angle)
         label_y = (radius * 1.2) * np.sin(mid_angle)
         
-        if hasattr(self, 'angle_label'):
-            self.angle_label.remove()
-        
-        # Format the angle in both degrees and radians
+        # Format angle text
         angle_text = f"{self.angle_deg:.2f}°"
         
-        # Get special angle representation if available
+        # Add negative angle representation for angles between 180° and 360°
+        if 180 < self.angle_deg <= 360:
+            negative_angle = self.angle_deg - 360
+            angle_text = f"{self.angle_deg:.2f}° = {negative_angle:.2f}°"
+        
+        # Get angle representations once to avoid recalculation
         radian_repr, complex_repr = self.get_angle_representation(self.angle_deg)
         
-        # Add radian representation to angle text
-        angle_text += f"\n{radian_repr}"
+        # Add radian representation to angle text for special angles
+        if "π" in radian_repr:
+            # For angles between 180° and 360°, show both positive and negative radian forms
+            if 180 < self.angle_deg <= 360:
+                # Calculate negative radian representation
+                neg_radian_repr = radian_repr
+                if radian_repr == "π":
+                    neg_radian_repr = "-π"
+                elif radian_repr == "2π":
+                    neg_radian_repr = "0"
+                elif "/" in radian_repr:
+                    try:
+                        # Extract numerator and handle negative representation
+                        parts = radian_repr.split("π")
+                        if "/" in parts[0]:
+                            num_str, denom_str = parts[0].split("/")
+                            num = int(num_str)
+                            denom = int(denom_str)
+                            # Calculate negative form
+                            neg_num = num - (2 * denom)
+                            if neg_num == -denom:
+                                neg_radian_repr = "-π"
+                            else:
+                                neg_radian_repr = f"{neg_num}/{denom}π"
+                        elif parts[0].strip() == "":
+                            neg_radian_repr = "-π"
+                        else:
+                            num = int(parts[0])
+                            neg_radian_repr = f"{num-2}π"
+                    except:
+                        # If parsing fails, just use the original
+                        pass
+                angle_text += f"\n{radian_repr} = {neg_radian_repr}"
+            else:
+                angle_text += f"\n{radian_repr}"
+        if 180 < self.angle_deg <= 360:
+            negative_angle = self.angle_deg - 360
+            angle_text = f"{self.angle_deg:.2f}° or {negative_angle:.2f}°"
+            if "π" in radian_repr:
+                angle_text += f"\n{radian_repr}"
         
         # Add complex representation for unit circle angles
         if abs(self.mag - 1.0) < 0.01:  # If close to unit circle
-            angle_text += f"\n{complex_repr.split(' = ')[0]}"
+            complex_parts = complex_repr.split(' = ')
+            if len(complex_parts) > 1:
+                angle_text += f"\n{complex_parts[0]}"
         
-        self.angle_label = self.ax.text(label_x, label_y, angle_text, 
-                                        fontsize=8, ha='center', va='center',
-                                        bbox=dict(facecolor='white', alpha=0.7))
+        # Update or create angle label
+        if hasattr(self, 'angle_label'):
+            # Update existing label instead of removing and recreating
+            self.angle_label.set_position((label_x, label_y))
+            self.angle_label.set_text(angle_text)
+            
+            # Update color and background based on dark mode
+            label_bg_color = '#444444' if self.dark_mode else 'white'
+            label_text_color = 'white' if self.dark_mode else 'black'
+            
+            self.angle_label.set_bbox(dict(facecolor=label_bg_color, alpha=0.8, boxstyle='round,pad=0.3'))
+            self.angle_label.set_color(label_text_color)
+        else:
+            # Initialize label for the first time
+            label_bg_color = '#444444' if self.dark_mode else 'white'
+            label_text_color = 'white' if self.dark_mode else 'black'
+            
+            self.angle_label = self.ax.text(
+                label_x, label_y, angle_text, 
+                fontsize=9, ha='center', va='center',
+                bbox=dict(facecolor=label_bg_color, alpha=0.8, boxstyle='round,pad=0.3'),
+                color=label_text_color
+            )
+            self.dynamic_artists.append(self.angle_label)  # Add to dynamic artists list for blitting
 
     def update_polar(self):
         """Update magnitude and angle from real and imaginary parts"""
@@ -395,125 +496,183 @@ class SimpleComplexPlane:
             return
         self.last_update_time = current_time
         
-        # Get trigonometric values first for reuse
-        cosine, sine, tangent = self.calculate_trig_values()
+        # Prevent excessive updates from causing recursion
+        if hasattr(self, '_update_in_progress') and self._update_in_progress:
+            return
+        self._update_in_progress = True
         
-        # Update the data for all dynamic parts
-        self.vector.set_data([0, self.real], [0, self.imag])
-        self.point.set_data([self.real], [self.imag])
-        
-        # Update unit circle point and projections
-        self.unit_point.set_data([cosine], [sine])
-        self.unit_vector.set_data([0, cosine], [0, sine])
-        self.cos_projection.set_data([0, cosine], [0, 0])
-        self.sin_projection.set_data([0, 0], [0, sine])
-        self.unit_connection.set_data([self.real, cosine], [self.imag, sine])
-        
-        # Update colored dotted lines for sine and cosine
-        self.cos_line.set_data([cosine, cosine], [0, sine])
-        self.sin_line.set_data([0, cosine], [sine, sine])
-        
-        # Update coordinate projections
-        self.h_projection.set_data([0, self.real], [self.imag, self.imag])
-        self.v_projection.set_data([self.real, self.real], [0, self.imag])
-        
-        # Update projection labels
-        self.coord_label.set_position((self.real/2, self.imag + 0.1))
-        self.coord_label.set_text(f"({self.real:.2f}, {self.imag:.2f})")
-        
-        self.cos_label.set_position((cosine/2, -0.1))
-        self.cos_label.set_text(f"cos(θ)={cosine:.4f}")
-        
-        self.sin_label.set_position((-0.2, sine/2))
-        self.sin_label.set_text(f"sin(θ)={sine:.4f}")
-        
-        # Update angle arc
-        self.draw_angle_arc()
-        
-        # Get exact angle representations
-        radian_repr, complex_repr = self.get_angle_representation(self.angle_deg)
-        
-        # Update complex number information text - focusing on exact representations
-        info_text = f"Complex number: {self.real:.4f} + {self.imag:.4f}i\n"
-        info_text += f"Magnitude: {self.mag:.4f}\n"
-        
-        # Display the exact angle representation when available
-        info_text += f"Angle: {self.angle_deg:.4f}° = {radian_repr}\n"
-        
-        # Add polar form representation using cos + i*sin format
-        cos_exact = self.get_exact_form(cosine)
-        sin_exact = self.get_exact_form(sine)
-        
-        # Use exact forms if available, otherwise use decimal values
-        if cos_exact != f"{cosine:.4f}" or sin_exact != f"{sine:.4f}":
-            info_text += f"Polar form: {self.mag:.4f}(cos({self.angle_deg:.4f}°) + i·sin({self.angle_deg:.4f}°)) = {self.mag:.4f}({cos_exact} + i·{sin_exact})\n"
-        else:
-            info_text += f"Polar form: {self.mag:.4f}(cos({self.angle_deg:.4f}°) + i·sin({self.angle_deg:.4f}°))\n"
-        
-        # Enhanced information - show e^(iθ) form with exact representations for all 15-degree increments
-        if abs(self.mag - 1.0) < 0.01:  # If close to unit circle
-            # Extract the exact representation from complex_repr
-            if " = " in complex_repr:
-                exact_expression = complex_repr.split(" = ")[1]
-                info_text += f"e^({radian_repr}i) = {exact_expression}"
+        try:
+            # Cache background if we don't have it yet (for blitting optimization)
+            if self.background is None or force_full_redraw:
+                self.fig.canvas.draw()
+                self.background = self.fig.canvas.copy_from_bbox(self.ax.bbox)
+                force_full_redraw = True  # Need a full redraw on first pass
+            
+            # Get trigonometric values first for reuse
+            cosine, sine, tangent = self.calculate_trig_values()
+            
+            # Update the data for all dynamic parts
+            self.vector.set_data([0, self.real], [0, self.imag])
+            self.point.set_data([self.real], [self.imag])
+            
+            # Update unit circle point and projections
+            self.unit_point.set_data([cosine], [sine])
+            self.unit_vector.set_data([0, cosine], [0, sine])
+            self.cos_projection.set_data([0, cosine], [0, 0])
+            self.sin_projection.set_data([0, 0], [0, sine])
+            self.unit_connection.set_data([self.real, cosine], [self.imag, sine])
+            
+            # Update colored dotted lines for sine and cosine
+            self.cos_line.set_data([cosine, cosine], [0, sine])
+            self.sin_line.set_data([0, cosine], [sine, sine])
+            
+            # Update coordinate projections
+            self.h_projection.set_data([0, self.real], [self.imag, self.imag])
+            self.v_projection.set_data([self.real, self.real], [0, self.imag])
+            
+            # Update projection labels
+            self.coord_label.set_position((self.real/2, self.imag + 0.1))
+            self.coord_label.set_text(f"({self.real:.2f}, {self.imag:.2f})")
+            
+            self.cos_label.set_position((cosine/2, -0.1))
+            self.cos_label.set_text(f"cos(θ)={cosine:.4f}")
+            
+            self.sin_label.set_position((-0.2, sine/2))
+            self.sin_label.set_text(f"sin(θ)={sine:.4f}")
+            
+            # Update angle arc - using optimized calculation
+            self.draw_angle_arc()
+            
+            # Get exact angle representations - using cached values for performance
+            radian_repr, complex_repr = self.get_angle_representation(self.angle_deg)
+            
+            # Update complex number information text - focusing on exact representations
+            info_text = f"Complex number: {self.real:.4f} + {self.imag:.4f}i\n"
+            info_text += f"Magnitude: {self.mag:.4f}\n"
+            
+            # Display angle in degrees with appropriate representation
+            if 180 < self.angle_deg <= 360:
+                negative_angle = self.angle_deg - 360
+                info_text += f"Angle: {self.angle_deg:.4f}° = {negative_angle:.4f}°\n"
             else:
-                info_text += f"e^({radian_repr}i)"
-        
-        # Update the info text
-        self.info_text.set_text(info_text)
-        
-        # Update trigonometric values text
-        # Format tangent display
-        if isinstance(tangent, float) and not np.isinf(tangent):
-            tan_text = f"{tangent:.4f}"
-        else:
-            tan_text = "undefined" if tangent > 0 else "-undefined"
-        
-        # Create trigonometric values display with exact forms when available
-        cos_exact = self.get_exact_form(cosine)
-        sin_exact = self.get_exact_form(sine)
-        
-        trig_text = f"Unit Circle Values:   "
-        
-        # Show decimal and exact forms when different
-        if cos_exact != f"{cosine:.4f}":
-            trig_text += f"cos(θ) = {cosine:.4f} = {cos_exact}     "
-        else:
-            trig_text += f"cos(θ) = {cosine:.4f}     "
+                info_text += f"Angle: {self.angle_deg:.4f}°\n"
             
-        if sin_exact != f"{sine:.4f}":
-            trig_text += f"sin(θ) = {sine:.4f} = {sin_exact}     "
-        else:
-            trig_text += f"sin(θ) = {sine:.4f}     "
+            # Add radian representation on its own line with both positive and negative representation when applicable
+            if 180 < self.angle_deg <= 360:
+                negative_radians = self.angle - 2*np.pi
+                info_text += f"Angle in radians: {self.angle:.4f} = {negative_radians:.4f}"
+                if "π" in radian_repr:
+                    # Get negative radian representation
+                    neg_radian_repr = radian_repr
+                    if "π" in radian_repr and "/" in radian_repr:
+                        # For fractions, calculate the negative form
+                        if radian_repr == "π":
+                            neg_radian_repr = "-π"
+                        elif radian_repr == "2π":
+                            neg_radian_repr = "0"
+                        else:
+                            try:
+                                # Extract numerator and handle negative representation
+                                parts = radian_repr.split("π")
+                                if "/" in parts[0]:
+                                    num_str, denom_str = parts[0].split("/")
+                                    num = int(num_str)
+                                    denom = int(denom_str)
+                                    # Calculate negative form
+                                    neg_num = num - (2 * denom)
+                                    if neg_num == -denom:
+                                        neg_radian_repr = "-π"
+                                    else:
+                                        neg_radian_repr = f"{neg_num}/{denom}π"
+                                elif parts[0].strip() == "":
+                                    neg_radian_repr = "-π"
+                                else:
+                                    num = int(parts[0])
+                                    neg_radian_repr = f"{num-2}π"
+                            except:
+                                # If parsing fails, just use the decimal form
+                                pass
+                    info_text += f" = {radian_repr} = {neg_radian_repr}"
+                info_text += "\n"
+            else:
+                info_text += f"Angle in radians: {self.angle:.4f}"
+                if "π" in radian_repr:
+                    info_text += f" = {radian_repr}"
+                info_text += "\n"
             
-        trig_text += f"tan(θ) = {tan_text}"
-        
-        # Update the trigonometric values display
-        self.trig_text.set_text(trig_text)
-        
-        # Use blitting for faster updates if possible
-        if self.background is not None and not force_full_redraw and not self.need_full_redraw:
-            # Restore the background
-            self.fig.canvas.restore_region(self.background)
+            # Add polar form representation using cos + i*sin format
+            cos_exact = self.get_exact_form(cosine)
+            sin_exact = self.get_exact_form(sine)
             
-            # Redraw only the dynamic artists
-            for artist in self.dynamic_artists:
-                if artist in self.ax.get_children():
-                    self.ax.draw_artist(artist)
+            # Use exact forms if available, otherwise use decimal values
+            if cos_exact != f"{cosine:.4f}" or sin_exact != f"{sine:.4f}":
+                info_text += f"Polar form: {self.mag:.4f}(cos({self.angle_deg:.4f}°) + i·sin({self.angle_deg:.4f}°)) = {self.mag:.4f}({cos_exact} + i·{sin_exact})\n"
+            else:
+                info_text += f"Polar form: {self.mag:.4f}(cos({self.angle_deg:.4f}°) + i·sin({self.angle_deg:.4f}°))\n"
             
-            # Add the angle_label to dynamic artists if not already there
-            if hasattr(self, 'angle_label') and self.angle_label not in self.dynamic_artists:
-                self.dynamic_artists.append(self.angle_label)
-                self.ax.draw_artist(self.angle_label)
+            # Enhanced information - show e^(iθ) form with exact representations for all 15-degree increments
+            if abs(self.mag - 1.0) < 0.01:  # If close to unit circle
+                # Extract the exact representation from complex_repr
+                if " = " in complex_repr:
+                    exact_expression = complex_repr.split(" = ")[1]
+                    info_text += f"e^({radian_repr}i) = {exact_expression}"
+                else:
+                    info_text += f"e^({radian_repr}i)"
             
-            # Blit the updated display
-            self.fig.canvas.blit(self.ax.bbox)
-            self.fig.canvas.flush_events()
-        else:
-            # Fall back to standard draw if no background or full redraw needed
-            self.fig.canvas.draw_idle()
-            # Reset the flag
-            self.need_full_redraw = False
+            # Update the info text
+            self.info_text.set_text(info_text)
+            
+            # Update trigonometric values text
+            # Format tangent display
+            if isinstance(tangent, float) and not np.isinf(tangent):
+                tan_text = f"{tangent:.4f}"
+            else:
+                tan_text = "undefined" if tangent > 0 else "-undefined"
+            
+            # Create trigonometric values display with exact forms when available
+            trig_text = f"Unit Circle Values:   "
+            
+            # Show decimal and exact forms when different
+            if cos_exact != f"{cosine:.4f}":
+                trig_text += f"cos(θ) = {cosine:.4f} = {cos_exact}     "
+            else:
+                trig_text += f"cos(θ) = {cosine:.4f}     "
+                
+            if sin_exact != f"{sine:.4f}":
+                trig_text += f"sin(θ) = {sine:.4f} = {sin_exact}     "
+            else:
+                trig_text += f"sin(θ) = {sine:.4f}     "
+                
+            trig_text += f"tan(θ) = {tan_text}"
+            
+            # Update the trigonometric values display
+            self.trig_text.set_text(trig_text)
+            
+            # Use blitting for faster updates if possible
+            if self.background is not None and not force_full_redraw and not self.need_full_redraw:
+                # Restore the background
+                self.fig.canvas.restore_region(self.background)
+                
+                # Redraw only the dynamic artists
+                for artist in self.dynamic_artists:
+                    if artist in self.ax.get_children():
+                        self.ax.draw_artist(artist)
+                
+                # Blit the updated display
+                self.fig.canvas.blit(self.ax.bbox)
+                self.fig.canvas.flush_events()
+            else:
+                # Fall back to standard draw if no background or full redraw needed
+                self.fig.canvas.draw_idle()
+                # Capture a new background for future blitting
+                if not self.drag_active:
+                    self.background = self.fig.canvas.copy_from_bbox(self.ax.bbox)
+                # Reset the flag
+                self.need_full_redraw = False
+                
+        finally:
+            # Always reset the in-progress flag when done
+            self._update_in_progress = False
     
     def submit_real(self, text):
         """Handle real part changes"""
@@ -564,37 +723,81 @@ class SimpleComplexPlane:
     
     def submit_angle(self, text):
         """Handle angle changes in degrees"""
+        # Prevent recursive calls
+        if hasattr(self, '_submitting_angle') and self._submitting_angle:
+            return
+        self._submitting_angle = True
+        
         try:
-            self.angle_deg = float(text)
+            # Parse input angle in degrees - can be any value, negative or positive
+            input_angle_deg = float(text)
+            
+            # Round for precision
+            input_angle_deg = round(input_angle_deg, 6)
+            
+            # Normalize to 0-360 range for internal representation
+            self.angle_deg = input_angle_deg % 360
             self.angle = np.radians(self.angle_deg)
             self.update_cartesian()
+            
+            # Batch update text boxes to avoid multiple redraws
             self.text_real.set_val(f"{self.real:.4f}")
             self.text_imag.set_val(f"{self.imag:.4f}")
             self.text_radians.set_val(f"{self.angle:.4f}")
             
+            # Only update angle box if it's significantly different
+            # This prevents recursive calls when setting it to a similar value
+            displayed_angle = float(self.text_angle.text)
+            if abs(displayed_angle - self.angle_deg) > 0.001:
+                self.text_angle.set_val(f"{self.angle_deg:.4f}")
+            
             # Adjust scale if needed to fit the point
             self.adjust_scale_to_fit_point()
             
-            self.update_display()
-        except:
+            # Update with optimizations for special angles
+            self.update_display(force_full_redraw=False)
+        except ValueError:
+            # Handle invalid input gracefully
             pass
+        finally:
+            self._submitting_angle = False
     
     def submit_radians(self, text):
         """Handle angle changes in radians"""
+        # Prevent recursive calls
+        if hasattr(self, '_submitting_radians') and self._submitting_radians:
+            return
+        self._submitting_radians = True
+        
         try:
             self.angle = float(text)
             self.angle_deg = np.degrees(self.angle)
+            
+            # Round for precision
+            self.angle_deg = round(self.angle_deg, 6)
+            self.angle = round(self.angle, 6)
+            
             self.update_cartesian()
+            
+            # Batch update text boxes to avoid multiple redraws
             self.text_real.set_val(f"{self.real:.4f}")
             self.text_imag.set_val(f"{self.imag:.4f}")
-            self.text_angle.set_val(f"{self.angle_deg:.4f}")
+            
+            # Only update angle box if it's significantly different
+            displayed_angle = float(self.text_angle.text)
+            if abs(displayed_angle - self.angle_deg) > 0.001:
+                self.text_angle.set_val(f"{self.angle_deg:.4f}")
             
             # Adjust scale if needed to fit the point
             self.adjust_scale_to_fit_point()
             
-            self.update_display()
-        except:
+            # Update with optimizations for special angles
+            self.update_display(force_full_redraw=False)
+        except ValueError:
+            # Handle invalid input gracefully
             pass
+        finally:
+            self._submitting_radians = False
     
     def on_click(self, event):
         """Handle mouse clicks"""
@@ -667,9 +870,6 @@ class SimpleComplexPlane:
         self.ax.set_xlim(-self.view_scale, self.view_scale)
         self.ax.set_ylim(-self.view_scale, self.view_scale)
         
-        # Update special angle visibility based on new scale
-        self.update_special_angle_visibility()
-        
         # Need a full redraw for this operation
         self.need_full_redraw = True
         self.update_display(force_full_redraw=True)
@@ -683,9 +883,6 @@ class SimpleComplexPlane:
         self.ax.set_xlim(-self.view_scale, self.view_scale)
         self.ax.set_ylim(-self.view_scale, self.view_scale)
         
-        # Update special angle visibility based on new scale
-        self.update_special_angle_visibility()
-        
         # Need a full redraw for this operation
         self.need_full_redraw = True
         self.update_display(force_full_redraw=True)
@@ -698,276 +895,246 @@ class SimpleComplexPlane:
         # Add 20% margin
         needed_scale = point_max * 1.2
         
-        # Only increase scale if needed
-        if needed_scale > self.view_scale:
+        # Only increase scale if needed and if the change is significant
+        if needed_scale > self.view_scale and (needed_scale - self.view_scale) > 0.01:
             self.view_scale = needed_scale
             self.ax.set_xlim(-self.view_scale, self.view_scale)
             self.ax.set_ylim(-self.view_scale, self.view_scale)
             # Need a full redraw when changing axis limits
             self.need_full_redraw = True
-    
+            # Clear the background to force redrawing
+            self.background = None
+
     def calculate_trig_values(self):
         """Calculate trigonometric values from the current angle"""
-        # For accuracy, calculate trig values directly from the angle
+        # For critical angles that might cause numerical precision issues, 
+        # use exact values instead of floating-point calculations
+        
+        # Normalize angle to 0-360 range and round to handle floating point issues
+        norm_angle = round(self.angle_deg % 360, 6)
+        
+        # Special handling for common angles that might have precision issues
+        if abs(norm_angle - 0) < 0.000001 or abs(norm_angle - 360) < 0.000001:
+            return 1.0, 0.0, 0.0
+        elif abs(norm_angle - 90) < 0.000001:
+            return 0.0, 1.0, float('inf')
+        elif abs(norm_angle - 180) < 0.000001:
+            return -1.0, 0.0, 0.0
+        elif abs(norm_angle - 270) < 0.000001:
+            return 0.0, -1.0, float('inf')
+            
+        # For other angles, calculate using numpy for accuracy
         sine = np.sin(self.angle)
         cosine = np.cos(self.angle)
-        # Handle undefined tangent at 90° and 270°
+        
+        # Handle very small values that should be zero (floating point cleanup)
+        if abs(sine) < 1e-13:
+            sine = 0.0
+        if abs(cosine) < 1e-13:
+            cosine = 0.0
+            
+        # Handle undefined tangent carefully
         if abs(cosine) < 1e-10:
             tangent = float('inf') if sine > 0 else float('-inf')
         else:
             tangent = sine / cosine
+            
         return cosine, sine, tangent
-
-    def update_special_angle_visibility(self):
-        """Update visibility of special angle labels based on current axis scale"""
-        # Get current axis limits
-        xlim = self.ax.get_xlim()
-        ylim = self.ax.get_ylim()
+    
+    def set_angle(self, angle_deg):
+        """Set angle to a specific value in degrees - common method for all angle presets"""
+        # Prevent recursive calls
+        if hasattr(self, '_setting_angle') and self._setting_angle:
+            return
+        self._setting_angle = True
         
-        # Determine if we should show the special angle labels
-        # Hide them if any axis limit exceeds 4 units (positive or negative)
-        should_show = (xlim[0] >= -4 and xlim[1] <= 4 and ylim[0] >= -4 and ylim[1] <= 4)
-        
-        # Update visibility of each label
-        if hasattr(self, 'special_angle_labels'):
-            for label in self.special_angle_labels:
-                label.set_visible(should_show)
-        
-        # Need a full redraw when changing visibility
-        self.need_full_redraw = True
+        try:
+            # Round the angle to help with floating-point precision issues
+            angle_deg = round(angle_deg, 6)
+            
+            # Set the new angle
+            self.angle_deg = angle_deg % 360  # Normalize to 0-360
+            self.angle = np.radians(self.angle_deg)
+            
+            # Update coordinates with mag=1 (unit circle)
+            self.mag = 1.0
+            self.update_cartesian()
+            
+            # Batch update text boxes to avoid multiple redraws
+            self.text_real.set_val(f"{self.real:.4f}")
+            self.text_imag.set_val(f"{self.imag:.4f}")
+            self.text_mag.set_val(f"{self.mag:.4f}")
+            self.text_angle.set_val(f"{self.angle_deg:.4f}")
+            self.text_radians.set_val(f"{self.angle:.4f}")
+            
+            # Update display with optimizations for special angles
+            self.update_display(force_full_redraw=False)
+        finally:
+            self._setting_angle = False
     
     def set_angle_15(self, event):
         """Set angle to 15 degrees"""
-        self.angle = np.radians(15)
-        self.angle_deg = 15
-        self.update_cartesian()
-        self.text_real.set_val(f"{self.real:.4f}")
-        self.text_imag.set_val(f"{self.imag:.4f}")
-        self.text_mag.set_val(f"{self.mag:.4f}")
-        self.text_angle.set_val(f"{self.angle_deg:.4f}")
-        self.text_radians.set_val(f"{self.angle:.4f}")
-        self.update_display()
+        self.set_angle(15)
     
     def set_angle_30(self, event):
         """Set angle to 30 degrees"""
-        self.angle = np.radians(30)
-        self.angle_deg = 30
-        self.update_cartesian()
-        self.text_real.set_val(f"{self.real:.4f}")
-        self.text_imag.set_val(f"{self.imag:.4f}")
-        self.text_mag.set_val(f"{self.mag:.4f}")
-        self.text_angle.set_val(f"{self.angle_deg:.4f}")
-        self.text_radians.set_val(f"{self.angle:.4f}")
-        self.update_display()
+        self.set_angle(30)
     
     def set_angle_45(self, event):
         """Set angle to 45 degrees"""
-        self.angle = np.radians(45)
-        self.angle_deg = 45
-        self.update_cartesian()
-        self.text_real.set_val(f"{self.real:.4f}")
-        self.text_imag.set_val(f"{self.imag:.4f}")
-        self.text_mag.set_val(f"{self.mag:.4f}")
-        self.text_angle.set_val(f"{self.angle_deg:.4f}")
-        self.text_radians.set_val(f"{self.angle:.4f}")
-        self.update_display()
+        self.set_angle(45)
     
     def set_angle_60(self, event):
         """Set angle to 60 degrees"""
-        self.angle = np.radians(60)
-        self.angle_deg = 60
-        self.update_cartesian()
-        self.text_real.set_val(f"{self.real:.4f}")
-        self.text_imag.set_val(f"{self.imag:.4f}")
-        self.text_mag.set_val(f"{self.mag:.4f}")
-        self.text_angle.set_val(f"{self.angle_deg:.4f}")
-        self.text_radians.set_val(f"{self.angle:.4f}")
-        self.update_display()
+        self.set_angle(60)
     
     def set_angle_90(self, event):
         """Set angle to 90 degrees"""
-        self.angle = np.radians(90)
-        self.angle_deg = 90
-        self.update_cartesian()
-        self.text_real.set_val(f"{self.real:.4f}")
-        self.text_imag.set_val(f"{self.imag:.4f}")
-        self.text_mag.set_val(f"{self.mag:.4f}")
-        self.text_angle.set_val(f"{self.angle_deg:.4f}")
-        self.text_radians.set_val(f"{self.angle:.4f}")
-        self.update_display()
+        self.set_angle(90)
     
     def set_angle_120(self, event):
         """Set angle to 120 degrees"""
-        self.angle = np.radians(120)
-        self.angle_deg = 120
-        self.update_cartesian()
-        self.text_real.set_val(f"{self.real:.4f}")
-        self.text_imag.set_val(f"{self.imag:.4f}")
-        self.text_mag.set_val(f"{self.mag:.4f}")
-        self.text_angle.set_val(f"{self.angle_deg:.4f}")
-        self.text_radians.set_val(f"{self.angle:.4f}")
-        self.update_display()
+        self.set_angle(120)
     
     def set_angle_180(self, event):
         """Set angle to 180 degrees"""
-        self.angle = np.radians(180)
-        self.angle_deg = 180
-        self.update_cartesian()
-        self.text_real.set_val(f"{self.real:.4f}")
-        self.text_imag.set_val(f"{self.imag:.4f}")
-        self.text_mag.set_val(f"{self.mag:.4f}")
-        self.text_angle.set_val(f"{self.angle_deg:.4f}")
-        self.text_radians.set_val(f"{self.angle:.4f}")
-        self.update_display()
+        self.set_angle(180)
     
     def set_angle_270(self, event):
         """Set angle to 270 degrees"""
-        self.angle = np.radians(270)
-        self.angle_deg = 270
-        self.update_cartesian()
-        self.text_real.set_val(f"{self.real:.4f}")
-        self.text_imag.set_val(f"{self.imag:.4f}")
-        self.text_mag.set_val(f"{self.mag:.4f}")
-        self.text_angle.set_val(f"{self.angle_deg:.4f}")
-        self.text_radians.set_val(f"{self.angle:.4f}")
-        self.update_display()
+        self.set_angle(270)
     
     def set_angle_360(self, event):
         """Set angle to 360 degrees"""
-        self.angle = np.radians(360)
-        self.angle_deg = 360
-        self.update_cartesian()
-        self.text_real.set_val(f"{self.real:.4f}")
-        self.text_imag.set_val(f"{self.imag:.4f}")
-        self.text_mag.set_val(f"{self.mag:.4f}")
-        self.text_angle.set_val(f"{self.angle_deg:.4f}")
-        self.text_radians.set_val(f"{self.angle:.4f}")
-        self.update_display()
+        self.set_angle(360)
     
     def toggle_dark_mode(self, event):
         """Toggle between dark mode and light mode"""
-        self.dark_mode = not self.dark_mode
+        # Prevent recursive updates
+        if hasattr(self, '_toggling_mode') and self._toggling_mode:
+            return
+        self._toggling_mode = True
         
-        if self.dark_mode:
-            # Dark mode settings
-            self.fig.set_facecolor('#2c2c2c')
-            self.ax.set_facecolor('#2c2c2c')
-            self.ax.grid(True, color='#5b5b5b')
-            self.ax.set_title('Complex Number Visualization', color='white')
-            self.ax.set_xlabel('Real (Cosine Component)', color='white')
-            self.ax.set_ylabel('Imaginary (Sine Component)', color='white')
-            self.ax.tick_params(axis='x', colors='white')
-            self.ax.tick_params(axis='y', colors='white')
-            self.ax.spines['bottom'].set_color('white')
-            self.ax.spines['top'].set_color('white')
-            self.ax.spines['left'].set_color('white')
-            self.ax.spines['right'].set_color('white')
+        try:
+            self.dark_mode = not self.dark_mode
+            
+            # Set colors based on dark/light mode
+            bg_color = '#2c2c2c' if self.dark_mode else 'white'
+            text_color = 'white' if self.dark_mode else 'black'
+            grid_color = '#5b5b5b' if self.dark_mode else 'lightgray'
+            box_color = '#444444' if self.dark_mode else 'white'
+            
+            # Update figure and axis colors
+            self.fig.set_facecolor(bg_color)
+            self.ax.set_facecolor(bg_color)
+            self.ax.grid(True, color=grid_color)
+            self.ax.set_title('Complex Number Visualization', color=text_color)
+            self.ax.set_xlabel('Real (Cosine Component)', color=text_color)
+            self.ax.set_ylabel('Imaginary (Sine Component)', color=text_color)
+            
+            # Update tick parameters
+            self.ax.tick_params(axis='x', colors=text_color)
+            self.ax.tick_params(axis='y', colors=text_color)
+            
+            # Update spines
+            for spine in self.ax.spines.values():
+                spine.set_color(text_color)
             
             # Update text elements
-            self.info_text.set_bbox(dict(facecolor='#444444', alpha=0.8))
-            self.info_text.set_color('white')
-            self.trig_text.set_bbox(dict(facecolor='#444444', alpha=0.9))
-            self.trig_text.set_color('white')
-            self.coord_label.set_color('skyblue')
-            self.cos_label.set_color('lightgreen')
-            self.sin_label.set_color('lightgreen')
+            self.info_text.set_bbox(dict(facecolor=box_color, alpha=0.8))
+            self.info_text.set_color(text_color)
+            self.trig_text.set_bbox(dict(facecolor=box_color, alpha=0.9))
+            self.trig_text.set_color(text_color)
             
-            # Update angle label
+            # Update label colors
+            self.coord_label.set_color('skyblue' if self.dark_mode else 'blue')
+            self.cos_label.set_color('lightgreen' if self.dark_mode else 'green')
+            self.sin_label.set_color('lightgreen' if self.dark_mode else 'green')
+            
+            # Update angle label if it exists
             if hasattr(self, 'angle_label'):
-                self.angle_label.set_bbox(dict(facecolor='#444444', alpha=0.7))
-                self.angle_label.set_color('white')
+                self.angle_label.set_bbox(dict(facecolor=box_color, alpha=0.8, boxstyle='round,pad=0.3'))
+                self.angle_label.set_color(text_color)
             
             # Update special angle labels
-            for label in self.special_angle_labels:
-                label.set_bbox(dict(facecolor='#444444', alpha=0.7))
-                label.set_color('white')
+            if hasattr(self, 'special_angle_labels'):
+                for label in self.special_angle_labels:
+                    label.set_bbox(dict(facecolor=box_color, alpha=0.8, boxstyle='round,pad=0.3'))
+                    label.set_color(text_color)
             
             # Update button text
-            self.btn_dark_mode.label.set_text('Light Mode')
-        else:
-            # Light mode settings
-            self.fig.set_facecolor('white')
-            self.ax.set_facecolor('white')
-            self.ax.grid(True, color='lightgray')
-            self.ax.set_title('Complex Number Visualization', color='black')
-            self.ax.set_xlabel('Real (Cosine Component)', color='black')
-            self.ax.set_ylabel('Imaginary (Sine Component)', color='black')
-            self.ax.tick_params(axis='x', colors='black')
-            self.ax.tick_params(axis='y', colors='black')
-            self.ax.spines['bottom'].set_color('black')
-            self.ax.spines['top'].set_color('black')
-            self.ax.spines['left'].set_color('black')
-            self.ax.spines['right'].set_color('black')
+            self.btn_dark_mode.label.set_text('Light Mode' if self.dark_mode else 'Dark Mode')
             
-            # Update text elements
-            self.info_text.set_bbox(dict(facecolor='white', alpha=0.8))
-            self.info_text.set_color('black')
-            self.trig_text.set_bbox(dict(facecolor='white', alpha=0.9))
-            self.trig_text.set_color('black')
-            self.coord_label.set_color('blue')
-            self.cos_label.set_color('green')
-            self.sin_label.set_color('green')
-            
-            # Update angle label
-            if hasattr(self, 'angle_label'):
-                self.angle_label.set_bbox(dict(facecolor='white', alpha=0.7))
-                self.angle_label.set_color('black')
-            
-            # Update special angle labels
-            for label in self.special_angle_labels:
-                label.set_bbox(dict(facecolor='white', alpha=0.7))
-                label.set_color('black')
-            
-            # Update button text
-            self.btn_dark_mode.label.set_text('Dark Mode')
-        
-        # Need a full redraw after changing theme
-        self.need_full_redraw = True
-        self.update_display(force_full_redraw=True)
+            # Force a full redraw
+            self.background = None  # Force regeneration of background
+            self.need_full_redraw = True
+            self.update_display(force_full_redraw=True)
+        finally:
+            self._toggling_mode = False
 
     def get_angle_representation(self, angle_deg):
         """
         Get string representation of angle in terms of π if it's a special value
         Returns tuple of (radian_repr, complex_repr)
         """
-        angle_rad = np.radians(angle_deg)
-        
-        # Define exact representations for angles in 15-degree increments
-        # Format: (numerator, denominator, radian representation, e^(ix) representation with exact values)
-        special_angles = {
-            0: (0, 1, "0", "e^(0i) = 1"),
-            15: (1, 12, "π/12", "e^(iπ/12) = cos(π/12) + i·sin(π/12) = (√6+√2)/4 + i·(√6-√2)/4"),
-            30: (1, 6, "π/6", "e^(iπ/6) = cos(π/6) + i·sin(π/6) = √3/2 + i·1/2"),
-            45: (1, 4, "π/4", "e^(iπ/4) = cos(π/4) + i·sin(π/4) = 1/√2 + i·1/√2"),
-            60: (1, 3, "π/3", "e^(iπ/3) = cos(π/3) + i·sin(π/3) = 1/2 + i·√3/2"),
-            75: (5, 12, "5π/12", "e^(i5π/12) = cos(5π/12) + i·sin(5π/12) = (√6-√2)/4 + i·(√6+√2)/4"),
-            90: (1, 2, "π/2", "e^(iπ/2) = cos(π/2) + i·sin(π/2) = 0 + i·1 = i"),
-            105: (7, 12, "7π/12", "e^(i7π/12) = cos(7π/12) + i·sin(7π/12) = -(√6-√2)/4 + i·(√6+√2)/4"),
-            120: (2, 3, "2π/3", "e^(i2π/3) = cos(2π/3) + i·sin(2π/3) = -1/2 + i·√3/2"),
-            135: (3, 4, "3π/4", "e^(i3π/4) = cos(3π/4) + i·sin(3π/4) = -1/√2 + i·1/√2"),
-            150: (5, 6, "5π/6", "e^(i5π/6) = cos(5π/6) + i·sin(5π/6) = -√3/2 + i·1/2"),
-            165: (11, 12, "11π/12", "e^(i11π/12) = cos(11π/12) + i·sin(11π/12) = -(√6+√2)/4 + i·(√6-√2)/4"),
-            180: (1, 1, "π", "e^(iπ) = cos(π) + i·sin(π) = -1 + i·0 = -1"),
-            195: (13, 12, "13π/12", "e^(i13π/12) = cos(13π/12) + i·sin(13π/12) = -(√6+√2)/4 - i·(√6-√2)/4"),
-            210: (7, 6, "7π/6", "e^(i7π/6) = cos(7π/6) + i·sin(7π/6) = -√3/2 - i·1/2"),
-            225: (5, 4, "5π/4", "e^(i5π/4) = cos(5π/4) + i·sin(5π/4) = -1/√2 - i·1/√2"),
-            240: (4, 3, "4π/3", "e^(i4π/3) = cos(4π/3) + i·sin(4π/3) = -1/2 - i·√3/2"),
-            255: (17, 12, "17π/12", "e^(i17π/12) = cos(17π/12) + i·sin(17π/12) = -(√6-√2)/4 - i·(√6+√2)/4"),
-            270: (3, 2, "3π/2", "e^(i3π/2) = cos(3π/2) + i·sin(3π/2) = 0 - i·1 = -i"),
-            285: (19, 12, "19π/12", "e^(i19π/12) = cos(19π/12) + i·sin(19π/12) = (√6-√2)/4 - i·(√6+√2)/4"),
-            300: (5, 3, "5π/3", "e^(i5π/3) = cos(5π/3) + i·sin(5π/3) = 1/2 - i·√3/2"),
-            315: (7, 4, "7π/4", "e^(i7π/4) = cos(7π/4) + i·sin(7π/4) = 1/√2 - i·1/√2"),
-            330: (11, 6, "11π/6", "e^(i11π/6) = cos(11π/6) + i·sin(11π/6) = √3/2 - i·1/2"),
-            345: (23, 12, "23π/12", "e^(i23π/12) = cos(23π/12) + i·sin(23π/12) = (√6+√2)/4 - i·(√6-√2)/4"),
-            360: (2, 1, "2π", "e^(i2π) = cos(2π) + i·sin(2π) = 1 + i·0 = 1")
-        }
-        
         # Normalize angle to 0-360 range
         norm_angle = angle_deg % 360
         
-        # Check if the angle is in our special angles dictionary or very close to it
-        for special_angle, (num, denom, rad_repr, complex_repr) in special_angles.items():
-            if abs(norm_angle - special_angle) < 0.01:
+        # Round to 6 decimals to avoid floating point comparison issues
+        norm_angle = round(norm_angle, 6)
+        
+        # Create the special angles dictionary only once
+        if not hasattr(self, 'special_angles_cache'):
+            # Define exact representations for angles in 15-degree increments
+            # Format: (numerator, denominator, radian representation, e^(ix) representation with exact values)
+            self.special_angles_cache = {
+                0: (0, 1, "0", "e^(0i) = 1"),
+                15: (1, 12, "π/12", "e^(iπ/12) = cos(π/12) + i·sin(π/12) = (√6+√2)/4 + i·(√6-√2)/4"),
+                30: (1, 6, "π/6", "e^(iπ/6) = cos(π/6) + i·sin(π/6) = √3/2 + i·1/2"),
+                45: (1, 4, "π/4", "e^(iπ/4) = cos(π/4) + i·sin(π/4) = 1/√2 + i·1/√2"),
+                60: (1, 3, "π/3", "e^(iπ/3) = cos(π/3) + i·sin(π/3) = 1/2 + i·√3/2"),
+                75: (5, 12, "5π/12", "e^(i5π/12) = cos(5π/12) + i·sin(5π/12) = (√6-√2)/4 + i·(√6+√2)/4"),
+                90: (1, 2, "π/2", "e^(iπ/2) = cos(π/2) + i·sin(π/2) = 0 + i·1 = i"),
+                105: (7, 12, "7π/12", "e^(i7π/12) = cos(7π/12) + i·sin(7π/12) = -(√6-√2)/4 + i·(√6+√2)/4"),
+                120: (2, 3, "2π/3", "e^(i2π/3) = cos(2π/3) + i·sin(2π/3) = -1/2 + i·√3/2"),
+                135: (3, 4, "3π/4", "e^(i3π/4) = cos(3π/4) + i·sin(3π/4) = -1/√2 + i·1/√2"),
+                150: (5, 6, "5π/6", "e^(i5π/6) = cos(5π/6) + i·sin(5π/6) = -√3/2 + i·1/2"),
+                165: (11, 12, "11π/12", "e^(i11π/12) = cos(11π/12) + i·sin(11π/12) = -(√6+√2)/4 + i·(√6-√2)/4"),
+                180: (1, 1, "π", "e^(iπ) = cos(π) + i·sin(π) = -1 + i·0 = -1"),
+                195: (13, 12, "13π/12", "e^(i13π/12) = cos(13π/12) + i·sin(13π/12) = -(√6+√2)/4 - i·(√6-√2)/4"),
+                210: (7, 6, "7π/6", "e^(i7π/6) = cos(7π/6) + i·sin(7π/6) = -√3/2 - i·1/2"),
+                225: (5, 4, "5π/4", "e^(i5π/4) = cos(5π/4) + i·sin(5π/4) = -1/√2 - i·1/√2"),
+                240: (4, 3, "4π/3", "e^(i4π/3) = cos(4π/3) + i·sin(4π/3) = -1/2 - i·√3/2"),
+                255: (17, 12, "17π/12", "e^(i17π/12) = cos(17π/12) + i·sin(17π/12) = -(√6-√2)/4 - i·(√6+√2)/4"),
+                270: (3, 2, "3π/2", "e^(i3π/2) = cos(3π/2) + i·sin(3π/2) = 0 - i·1 = -i"),
+                285: (19, 12, "19π/12", "e^(i19π/12) = cos(19π/12) + i·sin(19π/12) = (√6-√2)/4 - i·(√6+√2)/4"),
+                300: (5, 3, "5π/3", "e^(i5π/3) = cos(5π/3) + i·sin(5π/3) = 1/2 - i·√3/2"),
+                315: (7, 4, "7π/4", "e^(i7π/4) = cos(7π/4) + i·sin(7π/4) = 1/√2 - i·1/√2"),
+                330: (11, 6, "11π/6", "e^(i11π/6) = cos(11π/6) + i·sin(11π/6) = √3/2 - i·1/2"),
+                345: (23, 12, "23π/12", "e^(i23π/12) = cos(23π/12) + i·sin(23π/12) = (√6+√2)/4 - i·(√6-√2)/4"),
+                360: (2, 1, "2π", "e^(i2π) = cos(2π) + i·sin(2π) = 1 + i·0 = 1")
+            }
+            
+            # Add second-level cache for special presets to ensure immediate matches for 
+            # values that might have tiny numerical discrepancies
+            self.special_angles_rounded_cache = {}
+            for angle, data in self.special_angles_cache.items():
+                self.special_angles_rounded_cache[round(angle, 6)] = data
+        
+        # Fast path for exact angles - common case for preset buttons
+        if norm_angle in self.special_angles_cache:
+            _, _, rad_repr, complex_repr = self.special_angles_cache[norm_angle]
+            return rad_repr, complex_repr
+        
+        # Second fast path for rounded values - handles floating point precision issues
+        if norm_angle in self.special_angles_rounded_cache:
+            _, _, rad_repr, complex_repr = self.special_angles_rounded_cache[norm_angle]
+            return rad_repr, complex_repr
+            
+        # For preset buttons that might have floating point issues, use an even more precise check
+        # This is especially important for 270° and 45° which are causing the recursion error
+        for special_angle, (_, _, rad_repr, complex_repr) in self.special_angles_cache.items():
+            if abs(norm_angle - special_angle) < 0.000001:  # Much tighter tolerance
                 return rad_repr, complex_repr
         
         # If not a special angle, just return the normalized angle in degrees
