@@ -11,8 +11,10 @@ This educational tool helps understand the connection between complex numbers, t
 - Educational tool for learning complex numbers
 
 ## Preview
-![image](https://github.com/user-attachments/assets/e7f3ad34-6836-4160-be2b-092bd658a63c)
-![image](https://github.com/user-attachments/assets/cbe8e421-254c-47aa-8c18-d0c732ee17eb)
+![image](https://github.com/user-attachments/assets/aafc3412-2901-47c9-a736-b39c46886eba)
+
+![image](https://github.com/user-attachments/assets/7f376b05-02a2-4388-a7a1-57a1df77938a)
+
 
 
 
